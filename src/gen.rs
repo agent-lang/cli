@@ -1,9 +1,7 @@
 use crate::{
     api::choose,
-    ast::{Term, Type, Context},
+    ast::{Context, Term, Type},
 };
-
-pub fn 
 
 pub async fn gen(desc: String, term: Term, ty: Type, ctx: Context) -> Term {
     let options: Vec<Term> = vec![];
@@ -12,4 +10,5 @@ pub async fn gen(desc: String, term: Term, ty: Type, ctx: Context) -> Term {
         options,
     )
     .await;
+    Term::Lit("".to_string())
 }
