@@ -8,9 +8,7 @@ mod ast;
 mod gen;
 mod run;
 
-fn main() {
-    test();
-}
+fn main() {}
 
 async fn test() {
     let term = Term::App(

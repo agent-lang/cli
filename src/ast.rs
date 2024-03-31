@@ -89,8 +89,8 @@ pub enum Val {
     /// Literal
     Lit(String),
 
-    /// Application: func arg
-    App(Box<Val>, Box<Val>),
+    /// Application: func args
+    App(Box<Val>, Vec<Val>),
 }
 
 /// Value can be applied with argument
@@ -104,7 +104,14 @@ impl Val {
                 // Evaluate with complete environment
                 next.eval(&env)
             }
-            val => Val::App(Box::new(val), Box::new(arg)),
+            Val::App(func, mut args) => {
+                // Push argument to list
+                args.push(arg);
+
+                // Return self
+                Val::App(func, args)
+            }
+            val => Val::App(Box::new(val), vec![arg]),
         }
     }
 }
