@@ -1,0 +1,29 @@
+Term : U
+hole : Term
+var  : (name : String) -> Term
+lib  : (lib : Lib) -> Term
+lit  : (str : String) -> Term
+func : (param : Param) -> (body : Term) -> Term
+app  : (func : Term) -> (arg : Term) -> Term
+
+Lib : U
+predict : Lib
+bash : Lib
+parse : Lib
+print : Lib
+
+Param : U
+param : (name : String) -> (desc : String) -> (type : Type) -> Param
+
+Type  : U
+func  : (param : Param) -> (type : Type) -> Type
+exact : (name : String) -> Type
+
+generate = (desc : String) => gen desc Hole
+
+fill = (term : Term) => (with : Term) => match term
+  app func arg => let (f, success) = fill func with in
+                  match success
+                    true => ...
+
+gen = (desc : String) => (term : Term) => parse (predict (print term))
