@@ -1,15 +1,5 @@
-use crate::{
-    api::choose,
-    ast::{Term, Type, Context},
-};
+use crate::ast::Term;
 
-pub fn 
-
-pub async fn gen(desc: String, term: Term, ty: Type, ctx: Context) -> Term {
-    let options: Vec<Term> = vec![];
-    let choice = choose(
-        format!("Which one satisfies most: \n```\n{}\n```", desc),
-        options,
-    )
-    .await;
+pub fn gen<T>(term: Box<dyn Term<T>>) -> Box<dyn Term<T>> {
+    todo!();
 }
