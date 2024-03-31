@@ -1,6 +1,15 @@
-/// Param = name -Description-: Type
+use std::fmt::Display;
+
+/// Param = name: Type /* Description */
 #[derive(Debug, Clone)]
-pub struct Param(String, String, Box<Type>);
+pub struct Param(pub String, pub String, pub Box<Type>);
+
+/// Param can be displayed
+impl Display for Param {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {} /* {} */", self.0, self.2, self.1)
+    }
+}
 
 /// Type describes the property an operation satisfies
 #[derive(Debug, Clone)]
@@ -12,11 +21,14 @@ pub enum Type {
     Exact(String),
 }
 
-/// Library term
-#[derive(Debug, Clone)]
-pub enum Lib {
-    /// LLM Eval
-    Predict,
+/// Type can be displayed
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Func(param, ty) => write!(f, "({}) -> ({})", param, ty),
+            Type::Exact(id) => write!(f, "{}", id),
+        }
+    }
 }
 
 /// Term describes what an operation is
@@ -24,9 +36,6 @@ pub enum Lib {
 pub enum Term {
     /// Function: param => returnTerm
     Func(Param, Box<Term>),
-
-    /// Library term'
-    Lib(Lib),
 
     /// Variable
     Var(String),
@@ -38,15 +47,26 @@ pub enum Term {
     App(Box<Term>, Box<Term>),
 }
 
+/// Term can be displayed
+impl Display for Term {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Term::Func(param, term) => write!(f, "({}) => ({})", param, term),
+            Term::Var(id) => write!(f, "{}", id),
+            Term::Lit(lit) => write!(f, "\"{}\"", lit),
+            Term::App(func, arg) => write!(f, "({})({})", func, arg),
+        }
+    }
+}
+
 /// Term can be evaluated to value
 impl Term {
     pub fn eval(self, env: &Env) -> Val {
         match self {
             Term::Func(param, next) => Val::Func(param, next, env.clone()),
-            Term::Lib(lib) => Val::Lib(lib),
             Term::Var(id) => match env.iter().find(|v| v.0 == id) {
                 Some(val) => val.1.clone(),
-                None => todo!("variable not found"),
+                None => panic!("variable not found"),
             },
             Term::Lit(lit) => Val::Lit(lit),
             Term::App(func, arg) => {
@@ -62,9 +82,6 @@ impl Term {
 pub enum Val {
     /// Function encloses a term with its environment
     Func(Param, Box<Term>, Env),
-
-    /// Library term
-    Lib(Lib),
 
     /// Variable
     Var(String),
@@ -100,4 +117,4 @@ pub type Env = Vec<Arg>;
 
 /// Argument: name = value
 #[derive(Clone, Debug)]
-pub struct Arg(String, Val);
+pub struct Arg(pub String, pub Val);
