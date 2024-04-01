@@ -1,21 +1,24 @@
 use crate::{
     api::{ask, predict},
-    ast::Val,
+    ast::{Env, Val},
 };
 
-pub async fn run(val: Val) -> String {
+/// Run a value so that library functions are evaluated
+/// The result will be optionally stored in a variable, so `env`
+/// will be used multiple times.
+pub fn run(val: Val, env: &Env) -> Val {
     match val {
-        Val::Func(param, _, _) => format!("Func {:?}", param),
-        Val::Var(id) => format!("Var {}", id),
-        Val::Lit(lit) => lit,
         Val::App(func, args) => match *func {
-            Val::Var(name) if name == "predict" && args.len() == 1 => {
-                predict(Box::pin(run(args[0].clone())).await).await
+            Val::Lib(name) if name == "predict" && args.len() == 1 => {
+                let prefix = run(args[0].clone(), env).to_string();
+                Val::Lit(predict(prefix))
             }
-            Val::Var(name) if name == "ask" && args.len() == 1 => {
-                ask(Box::pin(run(args[0].clone())).await).await
+            Val::Lib(name) if name == "ask" && args.len() == 1 => {
+                let question = run(args[0].clone(), env).to_string();
+                Val::Lit(ask(question))
             }
             _ => panic!("invalid application"),
         },
+        otherwise => otherwise,
     }
 }

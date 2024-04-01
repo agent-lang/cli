@@ -86,6 +86,9 @@ pub enum Val {
     /// Variable
     Var(String),
 
+    /// Library function,
+    Lib(String),
+
     /// Literal
     Lit(String),
 
@@ -112,6 +115,26 @@ impl Val {
                 Val::App(func, args)
             }
             val => Val::App(Box::new(val), vec![arg]),
+        }
+    }
+}
+
+/// Value can be displayed
+impl Display for Val {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Val::Func(param, body, _env) => write!(f, "({}) => ({})", param, body),
+            Val::Var(id) => write!(f, "{}", id),
+            Val::Lib(id) => write!(f, "{}", id),
+            Val::Lit(lit) => write!(f, "\"{}\"", lit),
+            Val::App(func, arg) => {
+                let arg_str = arg
+                    .iter()
+                    .map(|x| format!("({})", x))
+                    .collect::<Vec<_>>()
+                    .join("");
+                write!(f, "({}){}", func, arg_str)
+            }
         }
     }
 }
