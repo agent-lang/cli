@@ -1,18 +1,22 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
-/// Param = name: Type /* Description */
-#[derive(Debug, Clone)]
-pub struct Param(pub String, pub String, pub Box<Type>);
+/// Param = name: Type /* Description; Example: example */
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Param(pub String, pub Box<Type>, pub String, pub Box<Term>);
 
 /// Param can be displayed
 impl Display for Param {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {} /* {} */", self.0, self.2, self.1)
+        write!(
+            f,
+            "{}: {} /* {}; Example: {} */",
+            self.0, self.1, self.2, self.3
+        )
     }
 }
 
 /// Type describes the property an operation satisfies
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     /// Function: param -> ReturnType
     Func(Param, Box<Type>),
@@ -32,7 +36,7 @@ impl Display for Type {
 }
 
 /// Term describes what an operation is
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Term {
     /// Function: param => returnTerm
     Func(Param, Box<Term>),
@@ -45,6 +49,12 @@ pub enum Term {
 
     /// Application: func arg
     App(Box<Term>, Box<Term>),
+
+    /// Let: let id = term; next
+    Let(String, Box<Term>, Box<Term>),
+
+    /// Hole: _
+    Hole(Param),
 }
 
 /// Term can be displayed
@@ -55,24 +65,43 @@ impl Display for Term {
             Term::Var(id) => write!(f, "{}", id),
             Term::Lit(lit) => write!(f, "\"{}\"", lit),
             Term::App(func, arg) => write!(f, "({})({})", func, arg),
+            Term::Let(id, term, next) => write!(f, "let {} = {};\n{}", id, term, next),
+            Term::Hole(param) => write!(f, "<{}>", param),
         }
     }
 }
 
 /// Term can be evaluated to value
 impl Term {
-    pub fn eval(self, env: &Env) -> Val {
+    pub fn eval(&self, env: Rc<Env>) -> Val {
         match self {
-            Term::Func(param, next) => Val::Func(param, next, env.clone()),
-            Term::Var(id) => match env.iter().find(|v| v.0 == id) {
-                Some(val) => val.1.clone(),
+            Term::Func(param, next) => Val::Func(param.clone(), next.clone(), env.clone()),
+            Term::Var(id) => match env.iter().find(|v| v.0 == *id) {
+                Some(Arg(_, Val::Rec(term, env))) => {
+                    // Append recursive variable to a new environment
+                    let mut new_env = (**env).clone();
+                    new_env.push(Arg(id.clone(), Val::Rec(term.clone(), env.clone())));
+
+                    // Evaluate with new environment (no positive check)
+                    term.eval(Rc::new(new_env))
+                }
+                Some(Arg(_, val)) => val.clone(),
                 None => panic!("variable not found"),
             },
-            Term::Lit(lit) => Val::Lit(lit),
+            Term::Lit(lit) => Val::Lit(lit.clone()),
             Term::App(func, arg) => {
-                let eval = func.eval(env);
-                eval.apply(arg.eval(env))
+                let val = func.eval(env.clone());
+                val.apply(arg.eval(env.clone()))
             }
+            Term::Let(id, term, next) => {
+                // Append recursive variable to a new environment
+                let mut new_env = (*env).clone();
+                new_env.push(Arg(id.clone(), Val::Rec(term.clone(), env.clone())));
+
+                // Directly evaluate next term
+                next.eval(Rc::new(new_env))
+            }
+            Term::Hole(param) => Val::Hole(param.clone()),
         }
     }
 }
@@ -81,7 +110,11 @@ impl Term {
 #[derive(Debug, Clone)]
 pub enum Val {
     /// Function encloses a term with its environment
-    Func(Param, Box<Term>, Env),
+    Func(Param, Box<Term>, Rc<Env>),
+
+    /// Rec term is evaluated when needed
+    /// The environment does NOT contain itself
+    Rec(Box<Term>, Rc<Env>),
 
     /// Variable
     Var(String),
@@ -94,18 +127,22 @@ pub enum Val {
 
     /// Application: func args
     App(Box<Val>, Vec<Val>),
+
+    /// Hole
+    Hole(Param),
 }
 
 /// Value can be applied with argument
 impl Val {
     fn apply(self, arg: Val) -> Val {
         match self {
-            Val::Func(param, next, mut env) => {
-                // Push argument to environment
-                env.push(Arg(param.0, arg));
+            Val::Func(param, next, env) => {
+                // Push argument to a new environment
+                let mut new_env = (*env).clone();
+                new_env.push(Arg(param.0, arg));
 
                 // Evaluate with complete environment
-                next.eval(&env)
+                next.eval(Rc::new(new_env))
             }
             Val::App(func, mut args) => {
                 // Push argument to list
@@ -124,6 +161,7 @@ impl Display for Val {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Val::Func(param, body, _env) => write!(f, "({}) => ({})", param, body),
+            Val::Rec(term, _env) => write!(f, "{}", term),
             Val::Var(id) => write!(f, "{}", id),
             Val::Lib(id) => write!(f, "{}", id),
             Val::Lit(lit) => write!(f, "\"{}\"", lit),
@@ -135,12 +173,13 @@ impl Display for Val {
                     .join("");
                 write!(f, "({}){}", func, arg_str)
             }
+            Val::Hole(param) => write!(f, "<{}>", param),
         }
     }
 }
 
 /// Context stores the mapping from name to type
-pub type Context = Vec<Param>;
+pub type Ctx = Vec<Param>;
 
 /// Env stores the mapping from name to value
 pub type Env = Vec<Arg>;
