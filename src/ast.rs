@@ -50,8 +50,8 @@ pub enum Term {
     /// Application: func arg
     App(Box<Term>, Box<Term>),
 
-    /// Let: let id = term; next
-    Let(String, Box<Term>, Box<Term>),
+    /// Let: let (param) = term; next
+    Let(Param, Box<Term>, Box<Term>),
 
     /// Hole: _
     Hole(Param),
@@ -65,7 +65,7 @@ impl Display for Term {
             Term::Var(id) => write!(f, "{}", id),
             Term::Lit(lit) => write!(f, "\"{}\"", lit),
             Term::App(func, arg) => write!(f, "({})({})", func, arg),
-            Term::Let(id, term, next) => write!(f, "let {} = {};\n{}", id, term, next),
+            Term::Let(param, term, next) => write!(f, "let ({}) = {};\n{}", param, term, next),
             Term::Hole(param) => write!(f, "<{}>", param),
         }
     }
@@ -77,15 +77,7 @@ impl Term {
         match self {
             Term::Func(param, next) => Val::Func(param.clone(), next.clone(), env.clone()),
             Term::Var(id) => match env.iter().find(|v| v.0 == *id) {
-                Some(Arg(_, Val::Rec(term, env))) => {
-                    // Append recursive variable to a new environment
-                    let mut new_env = (**env).clone();
-                    new_env.push(Arg(id.clone(), Val::Rec(term.clone(), env.clone())));
-
-                    // Evaluate with new environment (no positive check)
-                    term.eval(Rc::new(new_env))
-                }
-                Some(Arg(_, val)) => val.clone(),
+                Some(Arg(_, val)) => val.clone().unrec(id.clone()),
                 None => panic!("variable not found"),
             },
             Term::Lit(lit) => Val::Lit(lit.clone()),
@@ -93,13 +85,13 @@ impl Term {
                 let val = func.eval(env.clone());
                 val.apply(arg.eval(env.clone()))
             }
-            Term::Let(id, term, next) => {
+            Term::Let(param, term, next) => {
                 // Append recursive variable to a new environment
                 let mut new_env = (*env).clone();
-                new_env.push(Arg(id.clone(), Val::Rec(term.clone(), env.clone())));
+                new_env.push(Arg(param.0.clone(), Val::Rec(term.clone(), env.clone())));
 
                 // Directly evaluate next term
-                next.eval(Rc::new(new_env))
+                next.eval(new_env.into())
             }
             Term::Hole(param) => Val::Hole(param.clone()),
         }
@@ -134,7 +126,7 @@ pub enum Val {
 
 /// Value can be applied with argument
 impl Val {
-    fn apply(self, arg: Val) -> Val {
+    pub fn apply(self, arg: Val) -> Val {
         match self {
             Val::Func(param, next, env) => {
                 // Push argument to a new environment
@@ -142,7 +134,7 @@ impl Val {
                 new_env.push(Arg(param.0, arg));
 
                 // Evaluate with complete environment
-                next.eval(Rc::new(new_env))
+                next.eval(new_env.into())
             }
             Val::App(func, mut args) => {
                 // Push argument to list
@@ -151,7 +143,21 @@ impl Val {
                 // Return self
                 Val::App(func, args)
             }
-            val => Val::App(Box::new(val), vec![arg]),
+            val => Val::App(val.into(), vec![arg]),
+        }
+    }
+
+    pub fn unrec(self, id: String) -> Val {
+        match self {
+            Val::Rec(term, env) => {
+                // Append recursive variable to a new environment
+                let mut new_env = (*env).clone();
+                new_env.push(Arg(id, Val::Rec(term.clone(), env.clone())));
+
+                // Evaluate with new environment (no positive check)
+                term.eval(new_env.into())
+            }
+            other => other,
         }
     }
 }
