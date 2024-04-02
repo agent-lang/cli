@@ -1,23 +1,20 @@
-use std::fmt::Display;
-
+/// Predict the next words of an prefix with LLM
 pub fn predict(prefix: String) -> String {
     format!("predict({})", prefix)
 }
 
+/// Ask user a question
 pub fn ask(question: String) -> String {
     format!("predict({})", question)
 }
 
-pub fn choose<I>(desc: String, opt: I) -> <I as Iterator>::Item
-where
-    I: Iterator,
-    <I as Iterator>::Item: Display,
-{
-    format!(
-        "choose({}, {})",
-        desc,
-        opt.map(|t| t.to_string())
-            .fold("".to_string(), |a, b| a + ", " + &b)
-    );
+/// Choose from some options with LLM
+pub fn choose(desc: String, trans: &Vec<String>) -> usize {
+    todo!();
+}
+
+/// Fill the only blank in the template with LLM
+pub fn fill(tmpl: String, blank: String) -> String {
+    format!("fill({}, {})", tmpl, blank);
     todo!();
 }

@@ -1,17 +1,13 @@
 use std::{fmt::Display, rc::Rc};
 
-/// Param = name: Type /* Description; Example: example */
+/// Param = name: Type /* Description */
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Param(pub String, pub Box<Type>, pub String, pub Box<Term>);
+pub struct Param(pub String, pub Box<Type>, pub String);
 
 /// Param can be displayed
 impl Display for Param {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}: {} /* {}; Example: {} */",
-            self.0, self.1, self.2, self.3
-        )
+        write!(f, "{}: {} /* {} */", self.0, self.1, self.2)
     }
 }
 
@@ -75,7 +71,12 @@ impl Display for Term {
 impl Term {
     pub fn eval(&self, env: Rc<Env>) -> Val {
         match self {
+            // Clone is needed because we're not consuming the term
+            // Performance impact is O(n)
             Term::Func(param, next) => Val::Func(param.clone(), next.clone(), env.clone()),
+
+            // Looking for variable is O(n^2) overall
+            // Can be optimized with hashmap
             Term::Var(id) => match env.iter().find(|v| v.0 == *id) {
                 Some(Arg(_, val)) => val.clone().unrec(id.clone()),
                 None => panic!("variable not found"),
@@ -88,7 +89,10 @@ impl Term {
             Term::Let(param, term, next) => {
                 // Append recursive variable to a new environment
                 let mut new_env = (*env).clone();
-                new_env.push(Arg(param.0.clone(), Val::Rec(term.clone(), env.clone())));
+                new_env.push(Arg(
+                    param.0.clone(),
+                    Val::Rec(term.clone(), env.clone()).into(),
+                ));
 
                 // Directly evaluate next term
                 next.eval(new_env.into())
@@ -130,8 +134,9 @@ impl Val {
         match self {
             Val::Func(param, next, env) => {
                 // Push argument to a new environment
+                // Clone is needed because we can create different branches
                 let mut new_env = (*env).clone();
-                new_env.push(Arg(param.0, arg));
+                new_env.push(Arg(param.0, arg.into()));
 
                 // Evaluate with complete environment
                 next.eval(new_env.into())
@@ -151,8 +156,9 @@ impl Val {
         match self {
             Val::Rec(term, env) => {
                 // Append recursive variable to a new environment
+                // Clone is needed because we can create different branches
                 let mut new_env = (*env).clone();
-                new_env.push(Arg(id, Val::Rec(term.clone(), env.clone())));
+                new_env.push(Arg(id, Val::Rec(term.clone(), env.clone()).into()));
 
                 // Evaluate with new environment (no positive check)
                 term.eval(new_env.into())
@@ -192,4 +198,4 @@ pub type Env = Vec<Arg>;
 
 /// Argument: name = value
 #[derive(Clone, Debug)]
-pub struct Arg(pub String, pub Val);
+pub struct Arg(pub String, pub Box<Val>);
